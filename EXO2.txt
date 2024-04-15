@@ -1,0 +1,234 @@
+FONCTIONS_UTILISEES
+	FONCTION get_variables(expression: CHAINE)
+	DEBUT_FONCTION
+		RENVOYER sorted(set(filter(str.isalpha, expression)))
+	FIN_FONCTION
+
+	FONCTION evaluate(expression: CHAINE, var_dict: DICTIONNAIRE)
+	VARIABLES_FONCTION
+		var, val: CHAINE
+	DEBUT_FONCTION
+		expression -> expression.replace("+", " or ")
+		expression -> expression.replace(".", " and ")
+		expression -> expression.replace("!", " not ")
+		expression -> expression.replace("~", " not")
+
+		POUR var, val DANS var_dict.items()
+		DEBUT_POUR
+			expression -> expression.replace(var, val)
+		FIN_POUR
+
+		RENVOYER eval(expression)
+	FIN_FONCTION
+
+	FONCTION get_minterms(expression: CHAINE)
+	VARIABLES_FONCTION
+		minterms, variables, tab, b, c: LISTE
+		var_count, result: NOMBRE
+		var_dict: DICTIONNAIRE
+	DEBUT_FONCTION
+		variables -> get_variables(expression)
+		var_count -> len(variables)
+
+		POUR i DANS range(2**var_count)
+		DEBUT_POUR
+			b -> bin(i)[2:].zfill(var_count)
+			tab.append(list(b))
+		FIN_POUR
+
+		POUR c DANS tab
+		DEBUT_POUR
+			var_dict -> dict(zip(variables, c))
+			result -> evaluate(expression, var_dict)
+			SI result == 1 ALORS
+			DEBUT_SI
+				minterms.append(c)
+			FIN_SI
+		FIN_POUR
+
+		RENVOYER minterms
+	FIN_FONCTION
+
+	FONCTION get_prime_implicants(minterms: LISTE)
+	VARIABLES_FONCTION
+		prime_implicants, used, idxs, tmp: LISTE
+		i, j, k: NOMBRE
+	DEBUT_FONCTION
+		used -> [0 POUR i in range(len(minterms))]
+		POUR i DANS range(len(minterms))
+		DEBUT_POUR
+			POUR j DANS range(len(minterms))
+			DEBUT_POUR
+				SI minterms[i] &&! minterms[j] ALORS
+					idxs -> [k POUR k DANS range(len(minterms[i])) SI (minterms[i][k] &&! minterms[j][k])]
+					SI len(idxs) == 1
+					DEBUT_SI
+						tmp -> minterms[i].copy()
+						tmp[idxs[0]] -> "*"
+						used[i] -> 1
+						SI tmp not in prime_implicants ALORS
+						DEBUT_SI
+							prime_implicants.append(tmp)
+						FIN_SI
+					FIN_SI
+
+		SI used.count(0) == len(used) ALORS
+		DEBUT_SI
+			RENVOYER []
+		FIN_SI
+
+		POUR u DANS range(len(used))
+		DEBUT_POUR
+			if used[u] == 0
+				prime_implicants.append(minterms[u])
+		FIN_POUR
+
+		RENVOYER prime_implicants
+	FIN_FONCTION
+
+	FONCTION get_subset(implicant: LISTE)
+	VARIABLES_FONCTION
+		subset, tab, b, t, tmp: LISTE
+		star_count, i: NOMBRE
+		star_counter: NOMBRE
+	DEBUT_FONCTION
+		star_count -> implicant.count("*")
+		POUR i DANS range(2 ** star_count)
+		DEBUT_POUR
+			b -> list(bin(i)[2:].zfill(star_count))
+			tab.append(b)
+		FIN_POUR
+
+		POUR t in tab:
+		DEBUT_POUR
+			star_counter -> 0
+			tmp -> implicant.copy()
+			POUR i DANS range(len(tmp)):
+				SI implicant[i] == "*" ALORS
+				DEBUT_SI
+					tmp[i] -> t[star_counter]
+					star_counter += 1
+				FIN_SI
+			subset.append(tmp)
+		FIN_POUR
+
+		RENVOYER subset
+	FIN_FONCTION
+
+	FONCTION get_all_subsets(implicants: LISTE)
+	VARIABLES_FONCTION
+		all_minterms, implicant: LISTE
+	DEBUT_FONCTION
+		POUR implicant DANS implicants
+		DEBUT_POUR
+			all_minterms.append(get_subset(implicant))
+		FIN_POUR
+
+		RENVOYER all_minterms
+	FIN_FONCTION
+
+	FONCTION get_all_minterms(subsets: LISTE)
+	VARIABLES_FONCTION
+		all_minterms, subset, s: LISTE
+	DEBUT_FONCTION
+		POUR subset DANS subsets
+		DEBUT_POUR
+			POUR s DANS subset
+			DEBUT_POUR
+				SI s PAS DANS all_minterms ALORS
+				DEBUT_SI
+					all_minterms.append(s)
+				FIN_SI
+			FIN_POUR
+		FIN_POUR
+		all_minterms -> sorted(all_minterms)
+		RENVOYER all_minterms
+	FIN_FONCTION
+
+	FONCTION minimize(expression: CHAINE)
+	VARIABLES_FONCTION
+		minterms, variables, prime_implicants, redundant_indexes, subsets, all_minterms, tmp_subsets: LISTE
+		idx: NOMBRE
+		output: CHAINE
+	DEBUT_FONCTION
+		minterms -> get_minterms(expression)
+		variables -> get_variables(expression)
+		prime_implicants -> get_prime_implicants(minterms)
+
+		TANT_QUE len(prime_implicants) &&! 0 FAIRE
+		DEBUT_TANT_QUE
+			minterms.clear()
+			minterms.extend(prime_implicants)
+			prime_implicants -> get_prime_implicants(prime_implicants)
+		FIN_TANT_QUE
+
+		subsets -> get_all_subsets(minterms)
+		all_minterms -> get_all_minterms(subsets)
+
+		POUR i DANS range(len(subsets))
+		DEBUT_POUR
+			POUR j DANS range(len(subsets))
+			DEBUT_POUR
+				SI (i &&! j) ET (j PAS DANS redundant_indexes) ALORS
+				DEBUT_SI
+					tmp_subsets.append(subsets[j])
+				FIN_SI
+			FIN_POUR
+
+			SI get_all_minterms(tmp_subsets) == all_minterms ALORS
+			DEBUT_SI
+				redundant_indexes.append(i)
+			FIN_SI
+		FIN_POUR
+
+		POUR idx DANS reversed(range(len(redundant_indexes)))
+		DEBUT_POUR
+			del minterms[redundant_indexes[idx]]
+		FIN_POUR
+
+		POUR i DANS range(len(minterms))
+		DEBUT_POUR
+			POUR j DANS range(len(minterms[i]))
+			DEBUT_POUR
+				SI minterms[i][j] == "1" ALORS
+				DEBUT_SI
+					output += variables[j]
+				FIN_SI
+				SI minterms[i][j] == "0" ALORS
+				DEBUT_SI
+					output += "!" +  variables[j]
+				FIN_SI
+				SINON
+				DEBUT_SINON
+					continue
+				FIN_SINON
+				output += "."
+			FIN_POUR
+
+			SI output[-1] == "." ALORS
+			DEBUT_SI
+				output -> output[:-1]
+			FIN_SI
+
+			SI i < len(minterms) - 1 ALORS
+			DEBUT_SI
+				output += " + "
+			FIN_SI
+		FIN_POUR
+
+		RENVOYER output
+	FIN_FONCTION
+
+	FONCTION main()
+	VARIABLES_FONCTION
+		expression, output: CHAINE
+	DEBUT_FONCTION
+		expression -> input("Entrez l'expression à simplifier: ")
+		print("Résultat:")
+		output -> minimize(expression)
+		print("\t", output)
+	FIN_FONCTION
+
+DEBUT_ALGORITHME
+	main()
+FIN_ALGORITHME
